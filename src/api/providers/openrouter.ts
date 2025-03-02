@@ -9,6 +9,12 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 
+interface MessageContent {
+	type: "text"
+	text: string
+	cache_control?: { type: "ephemeral" }
+}
+
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -61,28 +67,23 @@ export class OpenRouterHandler implements ApiHandler {
 						{
 							type: "text",
 							text: systemPrompt,
-							// @ts-ignore-next-line
 							cache_control: { type: "ephemeral" },
-						},
+						} as MessageContent,
 					],
 				}
 				// Add cache_control to the last two user messages
-				// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
 				const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2)
 				lastTwoUserMessages.forEach((msg) => {
 					if (typeof msg.content === "string") {
 						msg.content = [{ type: "text", text: msg.content }]
 					}
 					if (Array.isArray(msg.content)) {
-						// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
-						let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+						const textParts = msg.content.filter((part): part is MessageContent => part.type === "text")
+						const lastTextPart = textParts[textParts.length - 1]
 
-						if (!lastTextPart) {
-							lastTextPart = { type: "text", text: "..." }
-							msg.content.push(lastTextPart)
+						if (lastTextPart) {
+							Object.assign(lastTextPart, { cache_control: { type: "ephemeral" } })
 						}
-						// @ts-ignore-next-line
-						lastTextPart["cache_control"] = { type: "ephemeral" }
 					}
 				})
 				break

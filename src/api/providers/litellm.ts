@@ -5,6 +5,12 @@ import { ApiHandler } from ".."
 import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 
+interface MessageContent {
+	type: "text"
+	text: string
+	cache_control?: { type: "ephemeral" }
+}
+
 export class LiteLlmHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -21,8 +27,31 @@ export class LiteLlmHandler implements ApiHandler {
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 			role: "system",
-			content: systemPrompt,
+			content: [
+				{
+					type: "text",
+					text: systemPrompt,
+					cache_control: { type: "ephemeral" },
+				} as MessageContent,
+			],
 		}
+
+		// Add cache_control to the last two user messages
+		const lastTwoUserMessages = formattedMessages.filter((msg) => msg.role === "user").slice(-2)
+
+		lastTwoUserMessages.forEach((msg) => {
+			if (typeof msg.content === "string") {
+				msg.content = [{ type: "text", text: msg.content }]
+			}
+			if (Array.isArray(msg.content)) {
+				const textParts = msg.content.filter((part): part is MessageContent => part.type === "text")
+				const lastTextPart = textParts[textParts.length - 1]
+
+				if (lastTextPart) {
+					Object.assign(lastTextPart, { cache_control: { type: "ephemeral" } })
+				}
+			}
+		})
 
 		const stream = await this.client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
