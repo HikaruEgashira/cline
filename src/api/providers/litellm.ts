@@ -58,7 +58,7 @@ export class LiteLlmHandler implements ApiHandler {
 			content: systemPrompt,
 		}
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
-		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini")
+		const isOminiModel = modelId.includes("o1") || modelId.includes("o3-mini")
 
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
@@ -67,7 +67,7 @@ export class LiteLlmHandler implements ApiHandler {
 
 		let temperature: number | undefined = 0
 
-		if (isOminiModel && reasoningOn) {
+		if (isOminiModel || reasoningOn) {
 			temperature = undefined // Thinking mode doesn't support temperature
 		}
 
